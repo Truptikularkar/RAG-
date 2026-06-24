@@ -1,0 +1,22 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+ENV/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Application Data / Logs
+chunk_trace.log
+data/uploads/
+data/index/
+
+# IDE / System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local RAG & Vector DB Explorer</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    <div class="app-container">
+        <!-- TOP APP BAR -->
+        <header class="app-header">
+            <div class="brand">
+                <i class="fa-solid fa-brain-circuit logo-icon"></i>
+                <div class="brand-text">
+                    <h1>RAG Sandbox</h1>
+                    <span class="subtext">Local Vector Search & Generation Laboratory</span>
+                </div>
+            </div>
+            <div class="header-stats">
+                <div class="stat-pill">
+                    <span class="label">Embedding:</span>
+                    <span id="stat-model" class="value">all-MiniLM-L6-v2</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="label">Indexed Chunks:</span>
+                    <span id="stat-chunks" class="value highlight">0</span>
+                </div>
+                <div class="stat-pill">
+                    <span class="label">Gemini API:</span>
+                    <span id="stat-gemini" class="value status-inactive"><i class="fa-solid fa-circle-dot"></i> Unconfigured</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="main-content">
+            <!-- LEFT COLUMN: INGESTION & CHUNKING -->
+            <section class="control-panel glass-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-file-import"></i> Document Ingestion</h2>
+                </div>
+                
+                <!-- Setup API Keys -->
+                <div class="settings-group">
+                    <label class="section-label">1. Configuration</label>
+                    <div class="input-with-button">
+                        <input type="password" id="gemini-key-input" placeholder="Google Gemini API Key..." />
+                        <button id="save-key-btn" title="Save API Key"><i class="fa-solid fa-floppy-disk"></i></button>
+                    </div>
+                    <small class="tip-text">Get a free key from Google AI Studio. Stored in memory.</small>
+                </div>
+
+                <!-- File Upload Drag Zone -->
+                <div class="settings-group">
+                    <label class="section-label">2. Upload Document (PDF, TXT, MD)</label>
+                    <input type="file" id="file-input" accept=".txt,.pdf,.md,.json,.py,.csv,.html" style="display: none;" />
+                    <div class="upload-zone" id="drop-zone">
+                        <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                        <p class="upload-prompt">Drag & Drop or <span>Browse Files</span></p>
+                    </div>
+                    <div id="file-status-info" class="file-status hidden">
+                        <div class="file-info-header">
+                            <span id="uploaded-file-name" class="filename"><i class="fa-solid fa-file-pdf"></i> doc.pdf</span>
+                            <span id="uploaded-file-size" class="filesize">24 KB</span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div id="upload-progress" class="progress-bar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chunking Settings -->
+                <div class="settings-group">
+                    <label class="section-label">3. Chunking Parameters</label>
+                    
+                    <div class="slider-control">
+                        <div class="slider-header">
+                            <span>Chunk Size (chars):</span>
+                            <span id="chunk-size-val" class="slider-value">500</span>
+                        </div>
+                        <input type="range" id="chunk-size-slider" min="100" max="2000" step="50" value="500" />
+                    </div>
+
+                    <div class="slider-control">
+                        <div class="slider-header">
+                            <span>Chunk Overlap:</span>
+                            <span id="chunk-overlap-val" class="slider-value">50</span>
+                        </div>
+                        <input type="range" id="chunk-overlap-slider" min="0" max="500" step="10" value="50" />
+                    </div>
+
+                    <div class="select-control">
+                        <label for="chunk-strategy">Splitting Strategy:</label>
+                        <select id="chunk-strategy">
+                            <option value="recursive" selected>Recursive Character (Smart)</option>
+                            <option value="fixed">Fixed-Size Character (Naive)</option>
+                        </select>
+                    </div>
+
+                    <div class="btn-group">
+                        <button id="chunk-preview-btn" class="btn btn-secondary"><i class="fa-solid fa-wand-magic-sparkles"></i> Process & Preview</button>
+                        <button id="index-db-btn" class="btn btn-primary disabled" disabled><i class="fa-solid fa-database"></i> Index to DB</button>
+                    </div>
+                </div>
+
+                <!-- Chunking Visualization Output -->
+                <div class="preview-panel hidden" id="preview-panel">
+                    <div class="preview-header">
+                        <h3><i class="fa-solid fa-magnifying-glass-chart"></i> Chunk Split Preview</h3>
+                        <span id="preview-count" class="badge">0 Chunks</span>
+                    </div>
+                    <div class="chunk-visualization" id="chunk-visualizer">
+                        <!-- Colored chunk blocks render here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- MIDDLE COLUMN: CHAT PLAYGROUND -->
+            <section class="chat-panel glass-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-comments"></i> RAG Query Lab</h2>
+                    <button id="clear-db-btn" class="btn-clear" title="Clear database and memory"><i class="fa-solid fa-trash-can"></i> Clear DB</button>
+                </div>
+
+                <!-- RAG Query Config Bar -->
+                <div class="query-config">
+                    <div class="config-item">
+                        <label>Retrieval Mode</label>
+                        <select id="retrieval-mode">
+                            <option value="hybrid" selected>Hybrid (Dense + Sparse)</option>
+                            <option value="dense">Dense Only (FAISS Vector)</option>
+                            <option value="sparse">Sparse Only (BM25 Keywords)</option>
+                        </select>
+                    </div>
+                    <div class="config-item">
+                        <label>LLM Engine</label>
+                        <select id="llm-provider">
+                            <option value="simulation" selected>RAG Simulation (Offline)</option>
+                            <option value="gemini">Google Gemini API (Cloud)</option>
+                            <option value="ollama">Ollama (100% Local)</option>
+                        </select>
+                    </div>
+                    <div class="config-item" id="ollama-model-group" style="display: none;">
+                        <label>Ollama Model</label>
+                        <input type="text" id="ollama-model-input" value="llama3" placeholder="llama3, mistral..." />
+                    </div>
+                </div>
+
+                <!-- Chat Display Thread -->
+                <div class="chat-history" id="chat-thread">
+                    <div class="message system-msg">
+                        <div class="msg-icon"><i class="fa-solid fa-robot"></i></div>
+                        <div class="msg-content">
+                            <p>Welcome to the <strong>RAG Playground</strong>!</p>
+                            <p>To begin experimenting:</p>
+                            <ol>
+                                <li>Upload a text or PDF file on the left.</li>
+                                <li>Adjust the chunking parameters and click <strong>Process & Preview</strong> to see how documents split.</li>
+                                <li>Click <strong>Index to DB</strong> to write vectors into the local FAISS DB.</li>
+                                <li>Submit questions in the search input below to see the retrieval and generation pipeline in action!</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expandable Retrieval Trace Panel -->
+                <div class="trace-container closed" id="trace-panel">
+                    <div class="trace-header" id="trace-toggle">
+                        <span><i class="fa-solid fa-route"></i> Retrieval Thought Process (Trace)</span>
+                        <i class="fa-solid fa-chevron-up toggle-icon"></i>
+                    </div>
+                    <div class="trace-content" id="trace-details">
+                        <p class="trace-empty-msg">Perform a query to inspect the search mechanics, scores, and context injection.</p>
+                    </div>
+                </div>
+
+                <!-- Chat Input area -->
+                <div class="chat-input-container">
+                    <input type="text" id="query-input" placeholder="Ask a question about your documents..." disabled />
+                    <button id="send-btn" class="disabled" disabled><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN: LEARNING HUBS & ARCHITECTURE COMPARISON -->
+            <section class="learning-panel glass-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-graduation-cap"></i> Vector DB Architecture</h2>
+                </div>
+                
+                <!-- Tab Controls -->
+                <div class="tab-header">
+                    <button class="tab-btn active" data-tab="compare-tab">Compare DBs</button>
+                    <button class="tab-btn" data-tab="explain-tab">Core RAG Insights</button>
+                </div>
+
+                <!-- Tab Contents -->
+                <div class="tab-body">
+                    <!-- DB COMPARISON TAB -->
+                    <div class="tab-pane active" id="compare-tab">
+                        <p class="tab-intro">Compare the leading vector indexes and database services side-by-side to understand when to deploy each:</p>
+                        
+                        <div class="comparison-card">
+                            <div class="card-title faiss-bg">
+                                <i class="fa-solid fa-microchip"></i> FAISS (Facebook AI Similarity Search)
+                            </div>
+                            <div class="card-metric-row">
+                                <div class="metric"><span class="m-lbl">Type:</span> <span class="m-val">In-Memory Library</span></div>
+                                <div class="metric"><span class="m-lbl">Pricing:</span> <span class="m-val free">100% Free / Open Source</span></div>
+                            </div>
+                            <div class="card-body">
+                                <ul>
+                                    <li><strong>Pros:</strong> Extremely fast, low overhead, no network latency, offline execution, supports GPU acceleration.</li>
+                                    <li><strong>Cons:</strong> No built-in storage persistence (requires manual file serialization), no horizontal scalability, must rebuild indexes entirely on updates.</li>
+                                    <li><strong>Best For:</strong> Edge devices, rapid local prototyping, small-to-medium document stores (< 1M records).</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="comparison-card">
+                            <div class="card-title pinecone-bg">
+                                <i class="fa-solid fa-cloud"></i> Pinecone
+                            </div>
+                            <div class="card-metric-row">
+                                <div class="metric"><span class="m-lbl">Type:</span> <span class="m-val">Managed Cloud SaaS</span></div>
+                                <div class="metric"><span class="m-lbl">Pricing:</span> <span class="m-val">Free Tier / Serverless Pay-go</span></div>
+                            </div>
+                            <div class="card-body">
+                                <ul>
+                                    <li><strong>Pros:</strong> Fully managed (zero devops), instant horizontal scaling, real-time index updates, rich metadata filtering.</li>
+                                    <li><strong>Cons:</strong> Closed-source, cloud vendor lock-in, recurring subscription costs, requires persistent internet connection.</li>
+                                    <li><strong>Best For:</strong> Production SaaS apps needing high availability, scale, and fast integration.</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="comparison-card">
+                            <div class="card-title vertex-bg">
+                                <i class="fa-solid fa-server"></i> Vertex AI Vector Search
+                            </div>
+                            <div class="card-metric-row">
+                                <div class="metric"><span class="m-lbl">Type:</span> <span class="m-val">Enterprise Cloud Infrastructure</span></div>
+                                <div class="metric"><span class="m-lbl">Pricing:</span> <span class="m-val premium">Paid GCP Resource</span></div>
+                            </div>
+                            <div class="card-body">
+                                <ul>
+                                    <li><strong>Pros:</strong> Scans billions of vectors in milliseconds, deep integration with GCP (BigQuery, IAM), enterprise-grade security.</li>
+                                    <li><strong>Cons:</strong> Highly complex setup, high entry cost, overkill for smaller projects.</li>
+                                    <li><strong>Best For:</strong> Multi-million/billion-scale vector databases integrated into broader enterprise GCP ecosystems.</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CORE RAG EXPLAINER TAB -->
+                    <div class="tab-pane" id="explain-tab">
+                        <div class="explainer-section">
+                            <h4><i class="fa-solid fa-scissors text-blue"></i> Chunking Strategies</h4>
+                            <p><strong>Fixed-Size Character Chunking:</strong> Splits text strictly every <em>N</em> characters. While simple, it splits sentences or paragraphs in half, fragmenting context.</p>
+                            <p><strong>Recursive Character Chunking:</strong> Iteratively splits text by a sequence of characters (e.g. <code>\n\n</code>, <code>\n</code>, <code>.</code>, <code> </code>) until chunks are small enough. This preserves paragraph and sentence structures, ensuring semantic coherence.</p>
+                        </div>
+                        
+                        <div class="explainer-section">
+                            <h4><i class="fa-solid fa-arrows-split-up-and-left text-purple"></i> Sparse vs. Dense Retrieval</h4>
+                            <p><strong>Sparse (BM25):</strong> Traditional keyword matching. Extremely robust for matching exact terms (IDs, names, error codes, specific keywords), but fails on synonyms or semantic meaning.</p>
+                            <p><strong>Dense (Embeddings):</strong> Vector search. Encodes semantic concepts into high-dimensional space. Excels at retrieving conceptually similar documents (e.g., matching "dog" with "canine"), but fails on spelling errors or exact codes.</p>
+                        </div>
+
+                        <div class="explainer-section">
+                            <h4><i class="fa-solid fa-code-merge text-green"></i> Hybrid & RRF (Reciprocal Rank Fusion)</h4>
+                            <p>Combining sparse and dense search yields the best retrieval performance. We use <strong>RRF</strong> to merge rankings from FAISS and BM25:</p>
+                            <div class="formula-box">
+                                RRF = 1 / (60 + DenseRank) + 1 / (60 + SparseRank)
+                            </div>
+                            <p>RRF awards the highest score to items appearing near the top of <em>either</em> list, ensuring both keyword and semantic matches are retrieved.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Frontend logic -->
+    <script src="app.js"></script>
+</body>
+</html>
